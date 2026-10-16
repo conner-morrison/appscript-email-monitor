@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --bg: #f6f7f9; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --line: #e5e7eb;
+      --accent: #2563eb; --ok: #15803d; --okbg: #dcfce7; --warn: #b45309; --warnbg: #fef3c7;
+      --err: #b91c1c; --errbg: #fee2e2;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1115; --card: #181b21; --text: #e5e7eb; --muted: #9ca3af; --line: #2a2f37;
+        --accent: #3b82f6; --ok: #4ade80; --okbg: #14321f; --warn: #fbbf24; --warnbg: #3a2c0b;
+        --err: #f87171; --errbg: #3b1414;
+      }
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--text);
+           font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 560px; margin: 0 auto; display: grid; gap: 16px; }
+    h1 { font-size: 20px; margin: 0; }
+    h2 { font-size: 15px; margin: 0; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .between { justify-content: space-between; }
+    .badge { padding: 2px 10px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+    .badge.on { background: var(--okbg); color: var(--ok); }
+    .badge.paused { background: var(--warnbg); color: var(--warn); }
+    .badge.off { background: var(--errbg); color: var(--err); }
+    .warning { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--warnbg); color: var(--warn); }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 12px 0; }
+    dt { color: var(--muted); }
+    dd { margin: 0; overflow-wrap: anywhere; }
+    dd.error { color: var(--err); }
+    code { font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    fieldset { border: 0; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
+    legend { color: var(--muted); padding: 0; margin-bottom: 4px; }
+    form { display: grid; gap: 12px; margin-top: 12px; }
+    label { display: grid; gap: 4px; font-weight: 500; }
+    label small, .note { color: var(--muted); font-weight: 400; }
+    label.check { display: flex; align-items: center; gap: 8px; font-weight: 400; cursor: pointer; }
+    label.check input { width: auto; margin: 0; }
+    .note { margin: 0; font-size: 13px; }
+    input { font: inherit; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+            background: var(--bg); color: var(--text); }
+    select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+             background: var(--bg); color: var(--text); }
+    form select { width: 100%; padding: 8px 10px; }
+    button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+             background: var(--card); color: var(--text); cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button:disabled, input:disabled, select:disabled { opacity: .5; cursor: default; }
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+    .tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+           padding: 8px 14px; margin-bottom: -1px; color: var(--muted); font-weight: 500; }
+    .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+    .tab .dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%;
+                background: var(--warn); vertical-align: middle; }
+    .panel { display: grid; gap: 16px; }
+    .warning .link { padding: 0; border: 0; background: none; color: inherit; font-weight: 600;
+                     text-decoration: underline; }
+    #msg { padding: 10px 12px; border-radius: 8px; }
+    #msg.ok { background: var(--okbg); color: var(--ok); }
+    #msg.err { background: var(--errbg); color: var(--err); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Vollna Alert Worker</h1>
+    <div id="msg" role="status" hidden></div>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" class="tab" role="tab" id="tabWorkspace" data-tab="workspace">Workspace</button>
+      <button type="button" class="tab" role="tab" id="tabSettings" data-tab="settings">Settings<span class="dot" id="settingsDot" hidden></span></button>
+    </nav>
+
+    <div class="panel" id="panelWorkspace" role="tabpanel">
+    <p class="warning" id="notReady" hidden><span id="notReadyText"></span>
+      <button type="button" class="link" id="openSettings">Open settings</button></p>
+
+    <section class="card">
+      <div class="row between">
+        <h2>Sending</h2>
+        <span id="badge" class="badge">…</span>
+      </div>
+      <dl>
+        <dt>Timer</dt><dd id="trigger">…</dd>
+        <dt>Last sent</dt><dd id="lastSent">…</dd>
+        <dt>Last skipped</dt><dd id="lastSkipped">…</dd>
+        <dt>Last error</dt><dd id="lastError">…</dd>
+      </dl>
+      <fieldset>
+        <legend>Send</legend>
+        <label class="check"><input type="checkbox" class="toggle" data-kind="job"> Vollna job alerts</label>
+        <label class="check"><input type="checkbox" class="toggle" data-kind="alert"> Upwork job alerts</label>
+        <label class="check"><input type="checkbox" class="toggle" data-kind="invite"> Upwork invitations</label>
+        <label class="check"><input type="checkbox" class="toggle" data-kind="message"> Upwork messages</label>
+      </fieldset>
+      <fieldset>
+        <legend>Filter</legend>
+        <label class="check">
+          <input type="checkbox" class="toggle" id="onlyVerified">
+          Only jobs whose client has a verified payment method
+        </label>
+        <p class="note" id="onlyVerifiedNote">Applies to Vollna job alerts and Upwork job alerts. Invitations and messages are never filtered.</p>
+      </fieldset>
+      <fieldset>
+        <legend>Check Gmail</legend>
+        <label class="check">Every <select id="interval"></select> minutes</label>
+        <p class="note">Gmail allows a limited number of checks per day (20,000 calls on a personal account).
+          Every 5 minutes is a safe default; every minute can use the day's allowance up.</p>
+      </fieldset>
+      <div class="row">
+        <button id="pause">Pause</button>
+        <button id="resume" class="primary">Resume</button>
+        <button id="resumeSkip">Resume, skip missed</button>
+        <button id="install" hidden>Install timer</button>
+      </div>
+    </section>
+    </div>
+
+    <div class="panel" id="panelSettings" role="tabpanel" hidden>
+    <section class="card">
+      <div class="row between">
+        <h2>Relay</h2>
+        <span id="regBadge" class="badge">…</span>
+      </div>
+      <p class="warning" id="regWarning" hidden></p>
+      <dl>
+        <dt>Status</dt><dd id="regStatus">…</dd>
+        <dt>Name</dt><dd id="regName">…</dd>
+        <dt id="fpLabel">Fingerprint</dt><dd id="regFingerprint">…</dd>
+        <dt id="idLabel">Worker id</dt><dd id="regId">…</dd>
+        <dt>Channels</dt><dd id="regChannels">…</dd>
+      </dl>
+      <div class="row">
+        <button type="button" id="enrol" class="primary">Register worker</button>
+        <button type="button" id="sync">Check now</button>
+        <button type="button" id="forget">Forget registration</button>
+      </div>
+      <p class="note" style="margin-top:12px">The relay cannot contact this script, so the script asks it:
+        on every timer run, and every few seconds while this page is open.</p>
+    </section>
+
+    <section class="card">
+      <h2>Worker settings</h2>
+      <form id="settings">
+        <label>Relay URL <small>(the workspace address)</small>
+          <input name="url" type="url" required placeholder="https://relay.example.com/upwork">
+        </label>
+        <label>Worker name <small>(shown in the relay console)</small>
+          <input name="name" required maxlength="64" placeholder="Gmail alerts">
+        </label>
+        <label>Default channel
+          <select name="channel" class="channel"></select>
+        </label>
+        <fieldset>
+          <legend>Channel per kind</legend>
+          <label>Vollna job alerts <select data-channel="job" class="channel"></select></label>
+          <label>Upwork job alerts <select data-channel="alert" class="channel"></select></label>
+          <label>Upwork invitations <select data-channel="invite" class="channel"></select></label>
+          <label>Upwork messages <select data-channel="message" class="channel"></select></label>
+        </fieldset>
+        <div class="row">
+          <button type="submit" class="primary">Save</button>
+          <button type="button" id="test">Send test message</button>
+        </div>
+        <p class="note">Channels are allocated in the relay console; only those can be chosen here.
+          The name is sent when registering; to rename a registered worker, rename it in the console.
+          Changing the relay URL forgets the registration.</p>
+      </form>
+    </section>
+    </div>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const form = $('settings');
+    const NAMES = {
+      job: 'Vollna job alerts', alert: 'Upwork job alerts', invite: 'Upwork invitations', message: 'Upwork messages',
+    };
+    const REG = {
+      unregistered: ['Not registered', 'off'],
+      pending: ['Waiting for approval', 'paused'],
+      no_channel: ['No channel', 'paused'],
+      ready: ['Ready', 'on'],
+    };
+    let busy = false;
+    let state = null;
+    let forgetArmed = null;
+    let tabChosen = false;
+
+    function showTab(name) {
+      document.querySelectorAll('.tab').forEach((t) => {
+        t.setAttribute('aria-selected', String(t.dataset.tab === name));
+      });
+      $('panelWorkspace').hidden = name !== 'workspace';
+      $('panelSettings').hidden = name !== 'settings';
+    }
+    document.querySelectorAll('.tab').forEach((t) => {
+      t.onclick = () => { tabChosen = true; showTab(t.dataset.tab); };
+    });
+    $('openSettings').onclick = () => { tabChosen = true; showTab('settings'); };
+    showTab('workspace');
+
+    function call(fn, ...args) {
+      return new Promise((resolve, reject) =>
+        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args));
+    }
+
+    function when(iso) {
+      return iso ? new Date(iso).toLocaleString() : '';
+    }
+
+    function show(text, ok) {
+      const m = $('msg');
+      m.textContent = text;
+      m.className = ok ? 'ok' : 'err';
+      m.hidden = false;
+    }
+
+    function syncToggles() {
+      document.querySelectorAll('.toggle, #interval').forEach((t) => { t.disabled = busy; });
+      if (state && !busy) $('onlyVerified').disabled = !state.send.job && !state.send.alert;
+    }
+
+    // Fills a channel picker with the allocated channels, keeping the saved choice selected.
+    function fillChannels(sel, allocated, saved, emptyLabel) {
+      if (document.activeElement === sel) return;
+      sel.textContent = '';
+      sel.add(new Option(emptyLabel, ''));
+      allocated.forEach((c) => sel.add(new Option('#' + c, c)));
+      sel.value = allocated.indexOf(saved) >= 0 ? saved : '';
+      sel.disabled = !allocated.length;
+    }
+
+    function renderRegistration(r) {
+      const [text, cls] = REG[r.status] || [r.status, 'paused'];
+      $('regBadge').textContent = text;
+      $('regBadge').className = 'badge ' + cls;
+      $('regStatus').textContent = r.message;
+      $('regName').textContent = r.name;
+      const pending = r.status === 'pending';
+      $('fpLabel').hidden = $('regFingerprint').hidden = !pending;
+      $('regFingerprint').innerHTML = '';
+      if (pending) {
+        const code = document.createElement('code');
+        code.textContent = r.fingerprint || '?';
+        $('regFingerprint').append(code, ` · asked ${when(r.requestedAt)}`);
+      }
+      const registered = r.status === 'ready' || r.status === 'no_channel';
+      $('idLabel').hidden = $('regId').hidden = !registered;
+      $('regId').textContent = registered ? `ends in ${r.idHint}` : '';
+      $('regChannels').textContent = r.channels.length
+        ? r.channels.map((c) => '#' + c + (c === r.defaultChannel ? ' (default)' : '')).join(', ')
+        : 'None allocated yet';
+      $('regWarning').hidden = r.status !== 'no_channel';
+      $('regWarning').textContent = 'No channel is allocated yet. Nothing is sent until this worker is added to a '
+        + 'channel in the relay console; emails up to 2 days old are sent once it is.';
+      $('enrol').hidden = registered;
+      $('enrol').textContent = pending ? 'Ask again' : 'Register worker';
+      $('forget').hidden = r.status === 'unregistered';
+
+      // Until the worker is ready, the Settings tab is where the next step is.
+      const ready = r.status === 'ready';
+      $('settingsDot').hidden = ready;
+      $('notReady').hidden = ready;
+      $('notReadyText').textContent = r.message + ' ';
+      if (!tabChosen) {
+        tabChosen = true;
+        showTab(ready ? 'workspace' : 'settings');
+      }
+    }
+
+    function render(s) {
+      state = s;
+      renderRegistration(s.registration);
+      $('badge').textContent = s.paused ? 'PAUSED' : 'ON';
+      $('badge').className = 'badge ' + (s.paused ? 'paused' : 'on');
+      $('trigger').textContent = s.trigger ? `Running every ${s.interval} min` : 'Not installed';
+      const sel = $('interval');
+      if (!sel.options.length) s.intervals.forEach((n) => sel.add(new Option(String(n), String(n))));
+      if (document.activeElement !== sel) sel.value = String(s.interval);
+      $('install').hidden = s.trigger;
+      $('lastSent').textContent = s.lastSent
+        ? `${s.lastSent.title}${s.lastSent.count > 1 ? ` (+${s.lastSent.count - 1} more)` : ''} · ${when(s.lastSent.at)}`
+        : 'Nothing yet';
+      $('lastSkipped').textContent = s.lastSkipped
+        ? `${s.lastSkipped.title}${s.lastSkipped.count > 1 ? ` (+${s.lastSkipped.count - 1} more)` : ''}: ${s.lastSkipped.reason} · ${when(s.lastSkipped.at)}`
+        : 'None';
+      $('lastError').textContent = s.lastError ? `${s.lastError.message} · ${when(s.lastError.at)}` : 'None';
+      $('lastError').className = s.lastError ? 'error' : '';
+      document.querySelectorAll('[data-kind]').forEach((t) => { t.checked = s.send[t.dataset.kind]; });
+      $('onlyVerified').checked = s.onlyVerified;
+      $('pause').disabled = s.paused;
+      $('resume').disabled = !s.paused;
+      $('resumeSkip').disabled = !s.paused;
+      for (const k of ['url', 'name']) {
+        if (document.activeElement !== form.elements[k]) form.elements[k].value = s[k];
+      }
+      const allocated = s.registration.channels;
+      fillChannels(form.elements.channel, allocated, s.channel,
+        allocated.length ? `First allocated (#${allocated[0]})` : 'None allocated yet');
+      document.querySelectorAll('[data-channel]').forEach((i) =>
+        fillChannels(i, allocated, s.channels[i.dataset.channel], 'Default channel'));
+      $('test').disabled = busy || s.registration.status !== 'ready';
+      syncToggles();
+    }
+
+    // Asks the script to check with the relay, so approval and channels show up by themselves.
+    function refresh() {
+      return call('panelSync').then(render).catch((e) => show(e.message || String(e), false));
+    }
+
+    async function act(fn, args, done) {
+      if (busy) return;
+      busy = true;
+      document.querySelectorAll('button:not(.tab)').forEach((b) => { b.disabled = true; });
+      syncToggles();
+      let failed = false;
+      try {
+        const r = await call(fn, ...args);
+        busy = false;
+        render(r && r.state ? r.state : r);
+        if (done) done(r);
+      } catch (e) {
+        failed = true;
+        show(e.message || String(e), false);
+      } finally {
+        busy = false;
+        document.querySelectorAll('#settings button, #install, #enrol, #sync, #forget, #openSettings')
+          .forEach((b) => { b.disabled = false; });
+        if (state) $('test').disabled = state.registration.status !== 'ready';
+        syncToggles();
+        if (failed) refresh();
+      }
+    }
+
+    $('pause').onclick = () => act('panelSetPaused', [true, false],
+      () => show('Paused. Nothing will be sent.', true));
+    $('resume').onclick = () => act('panelSetPaused', [false, false],
+      (r) => show(`Resumed. Emails that arrived while paused will be sent within ${r.interval} minutes.`, true));
+    $('resumeSkip').onclick = () => act('panelSetPaused', [false, true],
+      () => show('Resumed. Emails that arrived while paused were skipped.', true));
+    $('install').onclick = () => act('panelInstallTrigger', [],
+      () => show('Timer installed. Existing emails were skipped.', true));
+    $('onlyVerified').onchange = (e) => {
+      const on = e.target.checked;
+      act('panelSetOnlyVerified', [on], () => show(on
+        ? 'Only jobs whose client has a verified payment method will be sent.'
+        : 'Jobs will be sent regardless of payment verification.', true));
+    };
+    $('interval').onchange = (e) => act('panelSetInterval', [Number(e.target.value)],
+      (r) => show(`Checking Gmail every ${r.interval} minutes.`, true));
+    document.querySelectorAll('[data-kind]').forEach((t) => {
+      t.onchange = () => act('panelSetSending', [t.dataset.kind, t.checked],
+        () => show(`${NAMES[t.dataset.kind]}: ${t.checked ? 'sending' : 'not sending'}.`, true));
+    });
+
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(form));
+      data.channels = {};
+      document.querySelectorAll('[data-channel]').forEach((i) => { data.channels[i.dataset.channel] = i.value; });
+      act('panelSaveSettings', [data], () => show('Settings saved.', true));
+    };
+
+    $('enrol').onclick = () => act('panelEnrol', [], (r) => show(r.message, r.ok));
+    $('sync').onclick = () => act('panelSync', [], (s) => show(s.registration.message, s.registration.status === 'ready'));
+    // Forgetting cannot be undone from here, so it takes a second click.
+    $('forget').onclick = () => {
+      if (!forgetArmed) {
+        $('forget').textContent = 'Click again to forget';
+        forgetArmed = setTimeout(() => { forgetArmed = null; $('forget').textContent = 'Forget registration'; }, 4000);
+        return;
+      }
+      clearTimeout(forgetArmed);
+      forgetArmed = null;
+      $('forget').textContent = 'Forget registration';
+      act('panelForget', [], () => show('Registration forgotten. Register again to get a new id.', true));
+    };
+    $('test').onclick = () => act('panelTest', [], (r) => {
+      if (!r.results.length) return show(r.state.registration.message, false);
+      const failed = r.results.filter((x) => !x.ok);
+      show(failed.length
+        ? 'Test failed: ' + failed.map((x) => `${x.channel} (${x.error})`).join('; ')
+        : 'Test message sent to ' + r.results.map((x) => '#' + x.channel).join(' and ') + '.', !failed.length);
+    });
+
+    // Every 10 seconds while waiting for approval or a channel, every 30 once ready.
+    function schedule() {
+      const waiting = !state || state.registration.status === 'pending' || state.registration.status === 'no_channel';
+      setTimeout(() => (busy ? Promise.resolve() : refresh()).then(schedule), waiting ? 10000 : 30000);
+    }
+    refresh().then(schedule);
+  </script>
+</body>
+</html>
